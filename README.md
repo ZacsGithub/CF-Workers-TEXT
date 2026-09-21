@@ -1,7 +1,4 @@
-# CF-Workers-TEXT2KV
-
-部署在 [Cloudflare Workers](https://workers.cloudflare.com/) 上的轻量 KV 文本存储工具，使用 Cloudflare Workers KV 作为后端，提供完整的 Web 管理界面。
-
+**单文件部署** — 整个项目就是 `_worker.js` 一个文件，直接粘贴到 Cloudflare Workers 编辑器即可运行。
 
 ## 功能
 
@@ -10,42 +7,52 @@
 - **访问链接** — 一键复制公开访问 URL，浏览器直接显示纯文本内容
 - **内容加密** — 为 key 设置 readToken，访问时自动附加到链接
 - **搜索过滤** — 按 key 实时搜索
-- **复制功能** — 复制 key 名称或完整访问链接
+- **复制功能** — 复制访问链接
 - **字符统计** — 显示 content 字符数
 - **旧版兼容** — 保留原有 URL 路径操作方式（`/{key}?token=xxx&text=...`）
 - **脚本工具** — 提供 Windows bat 和 Linux sh 上传脚本
+- **智能清理** — 编辑 readToken 时自动清理旧 key，避免孤儿数据
 
 ## 项目结构
 
 ```
-CF-Workers-TEXT2KV/
-├── _worker.js              # Worker 代码（API + 路由 + 旧版兼容）
-├── public/
-│   └── index.html          # Web 管理界面（静态资源）
-├── wrangler.toml           # Cloudflare Workers 配置
-├── LICENSE                 # GPL v3
+CF-Workers-TEXT/
+├── _worker.js      # 全部代码（Worker + 内嵌 HTML + 工具函数）
 └── README.md
 ```
 
+## 数据模型
+
+每个逻辑 key 对应 KV 中的一条记录，格式为 `filename` 或 `filename:readToken`（第一个冒号分隔）。
+
+| 场景 | KV Key 格式 | 示例 |
+|------|------------|------|
+| 无 readToken | `filename` | `user-profile` |
+| 有 readToken | `filename:readToken` | `user-profile:a1b2c3` |
+
+- `filename` 仅允许字母、数字、连字符，最长 200 字符
+- 同一个 filename 下只能有一个 readToken 版本（保存时自动清理旧版本）
+- 列表接口按第一个冒号拆分，无冒号则 readToken 为空
+
 ## 部署
 
-### 方式一：Wrangler CLI（推荐）
-
-1. 安装 Wrangler：`npm install -g wrangler`
-2. 登录：`wrangler login`
-3. 创建 KV 命名空间：`wrangler kv:namespace create TEXT2KV`
-4. 将返回的 ID 填入 `wrangler.toml` 的 `kv_namespaces` 配置
-5. 修改 `wrangler.toml` 中的 `TOKEN` 为你想要的安全 token
-6. 部署：`wrangler deploy`
-
-### 方式二：Cloudflare Dashboard
+### 方式一：Cloudflare Dashboard（推荐）
 
 1. 进入 [Cloudflare Workers Dashboard](https://dash.cloudflare.com/?to=/:account/workers)
 2. 创建新 Worker
 3. 将 `_worker.js` 内容粘贴到编辑器
 4. 创建 KV 命名空间并绑定（binding 名称必须为 `KV`）
-5. 在 Settings → Variables 中添加 `TOKEN` 变量
-6. 在 Settings → Static Assets 中添加 `public/` 目录（或使用 Pages 部署静态文件）
+5. 在 Settings → Variables 中添加 `TOKEN` 变量（管理 token）
+6. 部署
+
+### 方式二：Wrangler CLI（可选）
+
+```bash
+wrangler login
+wrangler kv:namespace create TEXT2KV
+# 将返回的 ID 填入代码中的 KV 绑定配置
+wrangler deploy
+```
 
 ### 环境变量
 
@@ -61,37 +68,82 @@ CF-Workers-TEXT2KV/
 
 ## API 说明
 
-### GET /api/list?token=xxx
+所有 API 均支持 `Authorization: Bearer <token>` 或 URL 参数 `?token=<token>` 两种鉴权方式。
+
+### GET /api/list
+
 列出所有 key 及其 readToken。需要 admin token。
 
+**请求**
+```
+GET /api/list?token=YOUR_TOKEN
+```
+
+**响应**
+```json
+[
+  { "key": "user-profile", "readToken": "" },
+  { "key": "private-doc", "readToken": "a1b2c3" }
+]
+```
+
 ### POST /api/save
+
 保存 key-value。需要 admin token。
 
-请求体：
+- filename 仅允许字母、数字、连字符（`[a-zA-Z0-9-]`），最长 200 字符
+- 同一个 filename 下只能有一个 readToken 版本，保存时自动清理旧版本
+
+**请求**
 ```json
 {
-  "key": "my-key",
+  "key": "user-profile",
   "content": "my-value",
   "readToken": "optional-read-token"
 }
 ```
 
+**响应**
+```json
+{ "success": true }
+```
+
 ### POST /api/delete
+
 删除 key。需要 admin token。
 
-请求体：
+**请求**
 ```json
 {
-  "key": "my-key"
+  "key": "user-profile",
+  "readToken": "optional-read-token"
 }
 ```
 
+**响应**
+```json
+{ "success": true }
+```
+
 ### GET /api/get?key=xxx&readToken=yyy
+
 公开读取接口。返回纯文本内容（`Content-Type: text/plain; charset=utf-8`），浏览器直接显示。
 
 - 如果 key 未设置 readToken：直接访问 `/api/get?key=my-key`
 - 如果 key 设置了 readToken：需要提供 `&readToken=yyy`
 - 错误时返回 JSON（如 `{ "error": "Key 不存在" }`）
+
+## Key 命名规则
+
+| 规则 | 说明 |
+|------|------|
+| 字符集 | 仅允许字母（a-z, A-Z）、数字（0-9）、连字符（-） |
+| 长度 | 1-200 字符 |
+| 禁止字符 | `.`、`_`、`:`、`/`、空格及其他特殊字符 |
+| 示例 | `user-profile-v2` ✅ / `my.file` ❌ / `my_key` ❌ |
+
+> **注意**：旧版兼容路由（`/{key}?token=xxx`）不校验 key 格式，可能创建含特殊字符的 key。建议通过管理界面操作。
+
 
 ### 读取文件
 ```
@@ -115,35 +167,7 @@ GET https://your-worker.com/config/update.bat?token=YOUR_TOKEN
 GET https://your-worker.com/config/update.sh?token=YOUR_TOKEN
 ```
 
-## 管理界面功能
 
-### 登录
-- 首次使用需设置 Admin Token（浏览器本地存储）
-- 后续自动填充，无需重复输入
+## 许可证
 
-### 创建 Key
-- 点击「＋ 新建 Key」按钮，弹出表单
-- 填写 key 名称和 content 内容
-- 可选设置 readToken（加密读取权限）
-
-### 编辑 Key
-- 点击「编辑」按钮，弹出表单
-- 修改 content 或 readToken
-- 实时显示字符数统计
-
-### 删除 Key
-- 点击「删除」按钮，确认弹窗后删除
-
-### 搜索
-- 在搜索框输入关键词，按 key 实时过滤
-
-### 复制
-- 点击「链接」复制完整访问 URL（含 readToken 时自动附加）
-- 访问链接打开后直接显示纯文本内容
-
-### 深色模式
-- 默认跟随系统偏好
-- 右上角切换按钮手动切换
-- 自动保存到浏览器本地存储
-
-
+GPL v3 — 见 [LICENSE](./LICENSE)
