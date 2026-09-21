@@ -166,8 +166,3 @@ GET https://your-worker.com/config?token=YOUR_TOKEN
 GET https://your-worker.com/config/update.bat?token=YOUR_TOKEN
 GET https://your-worker.com/config/update.sh?token=YOUR_TOKEN
 ```
-
-
-## 许可证
-
-GPL v3 — 见 [LICENSE](./LICENSE)
