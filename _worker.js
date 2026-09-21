@@ -1,6 +1,3 @@
-// 单文件部署：直接粘贴到 Cloudflare Workers 编辑器即可运行
-// 需要配置 KV 绑定（binding: KV）和 TOKEN 环境变量
-//
 // 路由结构：
 //   /              → 管理界面（内嵌 HTML）
 //   /api/list      → GET  列出所有 key（需 admin token）
@@ -184,7 +181,7 @@ td.actions .btn-sm { margin-left: 6px; }
             <div class="field">
                 <label for="edit-key">Key</label>
                 <input type="text" id="edit-key" placeholder="my-key" maxlength="200" autocomplete="off">
-                <div class="hint">仅允许字母、数字、连字符，最长 200 字符</div>
+                <div class="hint">仅允许字母、数字、连字符、下划线，最长 200 字符</div>
             </div>
             <div class="field">
                 <label for="edit-content">Content <span id="content-size" style="font-weight:normal;color:var(--text-muted);font-size:13px;"></span></label>
@@ -246,7 +243,7 @@ function toggleTheme() {
     applyTheme(currentTheme());
 })();
 var STORAGE_KEY = 'text2kv_cf_admin_token';
-var KEY_REGEX = /^[a-zA-Z0-9-]{1,200}$/;
+var KEY_REGEX = /^[a-zA-Z0-9_-]{1,200}$/;
 var state = { token: null, keys: [], editing: null, deleting: null };
 function $(id) { return document.getElementById(id); }
 function toast(msg, type) {
@@ -369,7 +366,7 @@ async function saveKey() {
     var content = $('edit-content').value;
     var readToken = $('edit-token').value.trim();
     if (!key) { toast('Key 不能为空', 'error'); return; }
-    if (!KEY_REGEX.test(key)) { toast('Key 仅允许字母、数字、连字符，最长 200 字符', 'error'); return; }
+    if (!KEY_REGEX.test(key)) { toast('Key 仅允许字母、数字、连字符、下划线，最长 200 字符', 'error'); return; }
     var btn = $('edit-save-btn'); btn.disabled = true; btn.textContent = '保存中…';
     try { await api('POST', '/api/save', { key: key, content: content, readToken: readToken }); toast('保存成功', 'success'); closeEdit(); loadList(); }
     catch (e) { toast('保存失败: ' + e.message, 'error'); }
@@ -478,8 +475,8 @@ export default {
 
             const validateKey = (k) => {
                 if (!k || typeof k !== 'string') return 'Key 不能为空';
-                if (!/^[a-zA-Z0-9-]{1,200}$/.test(k))
-                    return 'Key 仅允许字母、数字、连字符，最长 200 字符';
+                if (!/^[a-zA-Z0-9_-]{1,200}$/.test(k))
+                    return 'Key 仅允许字母、数字、连字符、下划线，最长 200 字符';
                 return null;
             };
 
@@ -584,6 +581,8 @@ export default {
 
                 if (textParam || b64Param) {
                     if (!legacyAuth) return text('token 有误', 403);
+                    const keyErr = validateKey(legacyKey);
+                    if (keyErr) return text(keyErr, 400);
                     const content = textParam || base64Decode(replaceSpacesWithPlus(b64Param));
                     await env.KV.put(legacyKey, content);
                     const verified = await env.KV.get(legacyKey);
