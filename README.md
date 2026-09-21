@@ -2,7 +2,6 @@
 
 部署在 [Cloudflare Workers](https://workers.cloudflare.com/) 上的轻量 KV 文本存储工具，使用 Cloudflare Workers KV 作为后端，提供完整的 Web 管理界面。
 
-参考 [edgeone-text2kv](https://github.com/Theadvocate-bit/edgeone-text2kv) 改造。
 
 ## 功能
 
@@ -94,10 +93,6 @@ CF-Workers-TEXT2KV/
 - 如果 key 设置了 readToken：需要提供 `&readToken=yyy`
 - 错误时返回 JSON（如 `{ "error": "Key 不存在" }`）
 
-## 旧版兼容接口
-
-原有的 URL 路径操作方式仍然可用：
-
 ### 读取文件
 ```
 GET https://your-worker.com/{key}?token=YOUR_TOKEN
@@ -151,25 +146,4 @@ GET https://your-worker.com/config/update.sh?token=YOUR_TOKEN
 - 右上角切换按钮手动切换
 - 自动保存到浏览器本地存储
 
-## 与 edgeone-text2kv 的差异
 
-| 项 | edgeone-text2kv | CF-Workers-TEXT2KV |
-|---|---|---|
-| 平台 | EdgeOne Makers | Cloudflare Workers |
-| 存储 | Upstash Redis | Cloudflare Workers KV |
-| 路由 | 文件即路由（多文件） | 单文件路由（_worker.js） |
-| 静态资源 | `edgeone.json` 指定 | `wrangler.toml` 配置 assets |
-| Token 变量 | `ADMIN_TOKEN` | `TOKEN` |
-| 旧版兼容 | 无 | 保留 URL 路径操作 |
-
-## 迁移说明
-
-本项目从原始单文件架构改造为结构化 API + Web 管理界面，参考 edgeone-text2kv 设计。
-
-主要变更：
-1. **新增 API 端点**：`/api/list`、`/api/save`、`/api/delete`、`/api/get`
-2. **新增 Web 管理界面**：`public/index.html`（CRUD/搜索/深色模式）
-3. **新增 per-key readToken**：支持为每个 key 设置独立的读取 token
-4. **纯文本响应**：`/api/get` 返回 `text/plain`，浏览器直接显示内容
-5. **旧版兼容**：保留原有的 URL 路径操作方式
-6. **配置分离**：`wrangler.toml` 管理 KV 绑定和静态资源
