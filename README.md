@@ -30,7 +30,7 @@ CF-Workers-TEXT/
 | 无 readToken | `filename` | `user-profile` |
 | 有 readToken | `filename:readToken` | `user-profile:a1b2c3` |
 
-- `filename` 仅允许字母、数字、连字符，最长 200 字符
+- `filename` 仅允许字母、数字、连字符、下划线
 - 同一个 filename 下只能有一个 readToken 版本（保存时自动清理旧版本）
 - 列表接口按第一个冒号拆分，无冒号则 readToken 为空
 
